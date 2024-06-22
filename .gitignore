@@ -1,0 +1,3 @@
+vectorstore/
+.chainlit/
+__pycache__/
