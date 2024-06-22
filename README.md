@@ -28,40 +28,66 @@ Projects in Music Blocks -
 
 ## Setting Project locally
 
-1. Clone the Music Blocks repository to your local machine:
+1. Install a virtual environment of python
+
+   ```bash
+   pip install virtualenv
+   ```
+
+2. setting up the Python environment
+   ```bash
+   python3 -m venv .venv
+   ```
+3. Activate the virtual environment
+   
+    on windows
+   ```bash
+   .\.venv\Scripts\activate
+   ```
+   on macOS and Linux:
+   ```bash
+   source .venv/bin/activate
+   ```
+
+5. Clone the Music Blocks repository to your local machine:
 
   ```bash
   git clone https://github.com/khadar1020/Musicblocks-AI.git
   ```
 
-2. Navigate to the cloned repository:
+5. Navigate to the cloned repository:
 
  ```bash
  cd Musicblocks-AI
  ```
-3. Install Ollama locally on your PC
+6. Install Ollama locally on your PC
 
    Link to the website - [https://ollama.com/](https://ollama.com/).
-4. Install llama3 on your PC using ollama and terminal
+7. Install llama3 on your PC using ollama and terminal
 
   ```bash
   ollama pull llama3
   ```
-5. Checking whether llama3 is installed or not
+8. Checking whether llama3 is installed or not
    
   ```bash
   ollama run llama3
   ```
-6. Then install all the requirements for the project
+9. Also pull nomic-embed-text from ollama
+
+ ```bash
+ ollama pull nomic-embed-text
+ ```
+10. Then install all the requirements for the project
    
   ```bash
   pip install -r requirements.txt
   ```
-7. Then run this command to create a vector database this will take time 
+11. Then run this command to create a vector database this will take time 
   ```bash
   python ingest.py
   ```
-8. Then run this final command to run the project locally on your PC 
+12. Then run this final command to run the project locally on your PC 
   ```bash
   chainlit run model.py -w
   ```   
