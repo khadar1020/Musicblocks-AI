@@ -1,4 +1,4 @@
-# Music Blocks Lesson plan Generator
+# Introduction
 
 Music Blocks is a _Visual Programming Language_ and collection of
 _manipulative tools_ for exploring musical and mathematical concepts
@@ -8,9 +8,7 @@ in an integrative and entertaining way.
 
 “Mathematics and music are in a sense the same thing, with a different application.” — Roger Sessions
 
-## Getting Started
-
-There are several projects in Music Blocks, but only some of them have lesson plans. Additionally, only some of the concepts have lesson plans. In this project, we aim to create a chatbot that can generate lesson plans and answer your questions about Music Blocks.
+## Music Blocks 
 
 Visit the Music Blocks website for a hands-on experience:
 [https://musicblocks.sugarlabs.org](https://musicblocks.sugarlabs.org).
@@ -19,6 +17,10 @@ Or download Music Blocks from the [Google Play Store](https://play.google.com/st
 
 Additional background on why we combine music and programming can be found
 [here](./WhyMusicBlocks.md).
+
+## Getting Started with Music Blocks Lesson Plan Generator 
+
+There are several projects in Music Blocks, but only some of them have lesson plans. Additionally, only some of the concepts have lesson plans. In this project, we aim to create a chatbot that can generate lesson plans and answer your questions about Music Blocks.
 
 Projects in Music Blocks - 
 
@@ -52,17 +54,17 @@ Projects in Music Blocks -
   ```
 6. Then install all the requirements for the project
    
-   ```bash
-   pip install -r requirements.txt
-   ```
+  ```bash
+  pip install -r requirements.txt
+  ```
 7. Then run this command to create a vector database this will take time 
-   ```bash
-   python ingest.py
-   ```
+  ```bash
+  python ingest.py
+  ```
 8. Then run this final command to run the project locally on your PC 
-   ```bash
-   chainlit run model.py -w
-   ```   
+  ```bash
+  chainlit run model.py -w
+  ```   
     
 
 ## License
