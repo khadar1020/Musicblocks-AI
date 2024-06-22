@@ -7,5 +7,5 @@ sentence_transformers
 chainlit
 langchain_community
 fuzzywuzzy
-chainlit
 python-Levenshtein
+chromadb
