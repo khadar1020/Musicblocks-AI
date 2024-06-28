@@ -146,8 +146,6 @@ async def main(message: cl.Message):
         user_input = f"What are the best 6 real world songs that I can use to generate the lesson plan of {topic}? Give me the songs in number wise order as a table and also tell me why that song is best for that topic index in one column and song title in another column and why that song in another column"
         # Use conversation chain to form context-aware input
         context = conversation_chain(history, user_input)
-        print(context)   
-        print(history)
         chain = cl.user_session.get("chain")
         
         # Initiate QA call to get the response
@@ -158,9 +156,6 @@ async def main(message: cl.Message):
         res = await chain.acall(context, callbacks=[cb])
         answer = res["result"]
         table_memory['table'] = answer
-        
-        # Print the table_memory to debug
-        print("Updated table_memory: ", table_memory)
         
         # Send the response to the user
         await cl.Message(content=answer).send()
@@ -182,14 +177,11 @@ async def main(message: cl.Message):
                 for line in lines:
                     if line.startswith(f"| {selected_index} |"):
                         selected_song = line.split("|")[2].strip()
-                        print(selected_song)
                         break
             
                 user_input = f"generate a lesson plan for {topic} based on the song {selected_song} follow the structure provided and try to explain the lesson plan in detail using the song and elaborate that song using that topic"
                 context = conversation_chain(history, user_input)
                 history.append(user_input)
-                print(history)
-                print(context)   
                 chain = cl.user_session.get("chain")
                 
                 # Initiate QA call to get the response
@@ -212,8 +204,6 @@ async def main(message: cl.Message):
 
     # Use conversation chain to form context-aware input
     context = conversation_chain(history, user_input)
-    print(context)
-    print(history)   
     # If no sentiment or greeting detected, proceed with QA
     chain = cl.user_session.get("chain")
     cb = cl.AsyncLangchainCallbackHandler(
