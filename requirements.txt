@@ -6,6 +6,6 @@ bitsandbytes
 sentence_transformers
 chainlit
 langchain_community
+chromadb
 fuzzywuzzy
-chainlit
 python-Levenshtein
