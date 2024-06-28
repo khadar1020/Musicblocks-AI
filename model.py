@@ -1,9 +1,7 @@
-import transformers
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-from langchain_community.document_loaders import PyPDFLoader, DirectoryLoader
+from transformers import pipeline
 from langchain.prompts import PromptTemplate
-from langchain_community.embeddings import OllamaEmbeddings, HuggingFaceEmbeddings
+from langchain_community.embeddings import OllamaEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain.chains import RetrievalQA
 import chainlit as cl
@@ -13,7 +11,7 @@ from fuzzywuzzy import fuzz
 DB_CHROMA_PATH = 'vectorstore/db_chroma'
 
 custom_prompt_template = """
-you are an chatbot that answers my query regarding Music Blocks. 8 to 10 years children should also be capable of understanding your answer so just divide your answer into points(dont write in the answer this point). If any question the user asks not related to music or music blocks then just say This is the music blocks chatbot. When the user asks a question like generate a lesson plan of any particular topic then follow the structure provided. 
+you are an chatbot that answers my query regarding Music Blocks. 8 to 10 years children should also be capable of understanding your answer so just divide your answer into points with numbers(dont write in the answer this point) and explain the answer in detail.If any question the user asks not related to music or music blocks then just say This is the music blocks chatbot only answers music blocks questions. When the user asks a question like generate a lesson plan of any particular topic then follow the structure provided. 
 
 Context: {context}
 Question: {question}
@@ -88,14 +86,20 @@ def is_greeting(user_input):
             return True
     return False
 
+# Global variables
+table_memory = {}
+topic = ""
+
 # Chainlit code
 @cl.on_chat_start
 async def start():
+    global table_memory, topic
     chain = qa_bot()
     msg = cl.Message(content="Starting the bot...")
     await msg.send()
     cl.user_session.set("history", [])
-    msg.content = "Hi, Welcome to Music Blocks! What is your query?"
+    msg.content = """NOTE - Please read the Readme file so that you efficiently use our Music Blocks AI.
+                     Hi, Welcome to Music Blocks! What is your query?"""
     await msg.update()
 
     cl.user_session.set("chain", chain)
@@ -110,14 +114,16 @@ def conversation_chain(history, user_input):
 
 @cl.on_message
 async def main(message: cl.Message):
+    global table_memory, topic
     user_input = message.content.strip().lower()
     
     # Get conversation history from user session
     history = cl.user_session.get("history", [])
-    
-    # Append current user input to conversation history
-    history.append(user_input)
-    cl.user_session.set("history", history)
+    if "generate a lesson plan on" in user_input or "create a lesson plan on" in user_input:
+        print()
+    else:
+        history.append(user_input)
+    cl.user_session.set("history", history)  # Update history in user session
     
     # Check for sentiment
     sentiment = detect_sentiment(user_input)
@@ -134,9 +140,70 @@ async def main(message: cl.Message):
         await cl.Message(content="Hello! How can I assist you today?").send()
         return
 
+    # Check if user input is a request to generate or create a lesson plan
+    if "generate a lesson plan on" in user_input or "create a lesson plan on" in user_input:
+        topic = user_input.split("lesson plan on")[1].strip()
+        user_input = f"What are the best 6 real world songs that I can use to generate the lesson plan of {topic}? Give me the songs in number wise order as a table and also tell me why that song is best for that topic index in one column and song title in another column and why that song in another column"
+        # Use conversation chain to form context-aware input
+        context = conversation_chain(history, user_input)
+        chain = cl.user_session.get("chain")
+        
+        # Initiate QA call to get the response
+        cb = cl.AsyncLangchainCallbackHandler(
+            stream_final_answer=True, answer_prefix_tokens=["FINAL", "ANSWER"]
+        )
+        cb.answer_reached = True
+        res = await chain.acall(context, callbacks=[cb])
+        answer = res["result"]
+        table_memory['table'] = answer
+        
+        # Send the response to the user
+        await cl.Message(content=answer).send()
+            
+        # Prompt the user to select a song index
+        await cl.Message(content=f"Please give me the index of the song you want to use for generating the lesson plan on {topic}.").send()
+        return
+
+    # Check if user input is a number (1-6)
+    if user_input.isdigit():
+        selected_index = int(user_input)
+        if 1 <= selected_index <= 6:
+            selected_song = None
+            # Extract song details from table_memory based on selected_index
+            if 'table' in table_memory:
+                table_content = table_memory['table']
+                # | Song # | Song Name |
+                lines = table_content.split('\n')
+                for line in lines:
+                    if line.startswith(f"| {selected_index} |"):
+                        selected_song = line.split("|")[2].strip()
+                        break
+            
+                user_input = f"generate a lesson plan for {topic} based on the song {selected_song} follow the structure provided and try to explain the lesson plan in detail using the song and elaborate that song using that topic"
+                context = conversation_chain(history, user_input)
+                history.append(user_input)
+                chain = cl.user_session.get("chain")
+                
+                # Initiate QA call to get the response
+                cb = cl.AsyncLangchainCallbackHandler(
+                    stream_final_answer=True, answer_prefix_tokens=["FINAL", "ANSWER"]
+                )
+                cb.answer_reached = True
+                res = await chain.acall(context, callbacks=[cb])
+                answer = res["result"]
+                
+                # Send the response to the user
+                await cl.Message(content=answer).send()
+                return
+            else:
+                await cl.Message(content="please select a number from 1 to 6").send()
+                return
+        else:
+            await cl.Message(content="I am a Music Blocks ChatBot").send()
+            return
+
     # Use conversation chain to form context-aware input
     context = conversation_chain(history, user_input)
-
     # If no sentiment or greeting detected, proceed with QA
     chain = cl.user_session.get("chain")
     cb = cl.AsyncLangchainCallbackHandler(
