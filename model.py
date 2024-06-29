@@ -99,7 +99,7 @@ async def start():
     await msg.send()
     cl.user_session.set("history", [])
     msg.content = """NOTE - Please read the Readme file so that you efficiently use our Music Blocks AI.
-                     Hi, Welcome to Music Blocks! What is your query?"""
+                     Hi, welcome to the Music Blocks lesson plan creation assistant. How may I help you?"""
     await msg.update()
 
     cl.user_session.set("chain", chain)
