@@ -122,7 +122,8 @@ async def main(message: cl.Message):
     if "generate a lesson plan on" in user_input or "create a lesson plan on" in user_input:
         print()
     else:
-        history.append(user_input)
+        if not user_input.isdigit():
+            history.append(user_input)
     cl.user_session.set("history", history)  # Update history in user session
     
     # Check for sentiment
@@ -143,7 +144,7 @@ async def main(message: cl.Message):
     # Check if user input is a request to generate or create a lesson plan
     if "generate a lesson plan on" in user_input or "create a lesson plan on" in user_input:
         topic = user_input.split("lesson plan on")[1].strip()
-        user_input = f"What are the best 6 real world songs that I can use to generate the lesson plan of {topic}? Give me the songs in number wise order as a table and also tell me why that song is best for that topic index in one column and song title in another column and why that song in another column"
+        user_input = f"What are the best 6 real world songs that I can use to generate the lesson plan of {topic}? Give me the songs in a table the first column has index and second column has song and third column has why that song is helpful follow this order"
         # Use conversation chain to form context-aware input
         context = conversation_chain(history, user_input)
         chain = cl.user_session.get("chain")
@@ -176,12 +177,15 @@ async def main(message: cl.Message):
                 lines = table_content.split('\n')
                 for line in lines:
                     if line.startswith(f"| {selected_index} |"):
-                        selected_song = line.split("|")[2].strip()
+                        parts = line.split("|")
+                        selected_song = parts[2].strip()  # Song Name
+                        reason = parts[3].strip()        # Reason
                         break
             
-                user_input = f"generate a lesson plan for {topic} based on the song {selected_song} follow the structure provided and try to explain the lesson plan in detail using the song and elaborate that song using that topic"
+                user_input = f"generate a lesson plan for {topic} based on the song {selected_song} follow the structure provided and try to explain the lesson plan in detail using the song and elaborate that song using that topic. Explain in detail in 1000 to 1500 words"
                 context = conversation_chain(history, user_input)
-                history.append(user_input)
+                if not user_input.isdigit():
+                    history.append(user_input)
                 chain = cl.user_session.get("chain")
                 
                 # Initiate QA call to get the response
@@ -195,12 +199,13 @@ async def main(message: cl.Message):
                 # Send the response to the user
                 await cl.Message(content=answer).send()
                 return
-            else:
-                await cl.Message(content="please select a number from 1 to 6").send()
-                return
         else:
-            await cl.Message(content="I am a Music Blocks ChatBot").send()
-            return
+            if 'table' in table_memory:
+                await cl.Message(content="Please enter a number between 1 to 6.").send()
+                return
+            else:
+                await cl.Message(content="I am a Music Blocks ChatBot").send()
+                return
 
     # Use conversation chain to form context-aware input
     context = conversation_chain(history, user_input)
