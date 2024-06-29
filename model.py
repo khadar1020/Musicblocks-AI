@@ -144,7 +144,7 @@ async def main(message: cl.Message):
     # Check if user input is a request to generate or create a lesson plan
     if "generate a lesson plan on" in user_input or "create a lesson plan on" in user_input:
         topic = user_input.split("lesson plan on")[1].strip()
-        user_input = f"What are the best 6 real world songs that I can use to generate the lesson plan of {topic}? Give me the songs in a table the first column has index and second column has song and third column has why that song is helpful follow this order"
+        user_input = f"What are the best 6 real world songs that I can use to generate the lesson plan of {topic}? Give me the songs in a table the first column has index and second column has song and third column has why that song is helpful follow this order just give me  table dont give me any other information"
         # Use conversation chain to form context-aware input
         context = conversation_chain(history, user_input)
         chain = cl.user_session.get("chain")
