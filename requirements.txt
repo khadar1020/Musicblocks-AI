@@ -10,3 +10,4 @@ chromadb
 fuzzywuzzy
 python-Levenshtein
 googlesearch-python
+chromadb
