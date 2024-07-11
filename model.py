@@ -201,6 +201,7 @@ async def main(message: cl.Message):
                         reason = parts[3].strip()        # Reason
                         break
                 user_input = f"Question: {lessonPlan} based on this {selected_song} song? Follow the structure of lesson plans provided and try to explain the above question in detail using the song and elaborate that song using that topic using music blocks. Explain in detail in 1000 to 1500 words the question"
+                print(user_input)
                 context = conversation_chain(history, user_input)
                 if not user_input.isdigit():
                     history.append(user_input)

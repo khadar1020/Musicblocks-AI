@@ -9,4 +9,3 @@ langchain_community
 chromadb
 fuzzywuzzy
 python-Levenshtein
-googlesearch-python
