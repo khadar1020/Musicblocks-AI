@@ -11,12 +11,6 @@ Hi there, 👋 We're super excited to have you on board! 🎉 Let's dive into th
 
 ## 🎯 Points to be remembered to while generating a lesson plan for a topic
 
-##### 1. use a prompt like 
+##### 1. When the user asks to generate the lesson plan the Music BLocks AI will provide you with 4 songs and why thet are best suit for that topic choose one of the song based on the index of the song.
 
-   ```
-    create a lesson plan on <topic_name> in music blocks <add_extra_features_you_want>
-   ```
-
-##### 2. The model will provide you with 4 songs and why thet are best suit for that topic choose one of the song based on the index of the song.
-
-##### 3. Then the model will generate a lesson plan for that topic based on that song. 
+##### 2. Then the model will generate a lesson plan for that topic based on that song. 
