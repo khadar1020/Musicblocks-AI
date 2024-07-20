@@ -8,14 +8,18 @@ from langchain.chains import RetrievalQA
 import chainlit as cl
 from langchain_community.llms import Ollama
 from fuzzywuzzy import fuzz
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.messages import AIMessage, HumanMessage
 
 DB_CHROMA_PATH = 'vectorstore/db_chroma'
 
 custom_prompt_template = """
-1. 8 to 10 years children should also be capable of understanding your answer so just divide your answer into points with numbers(dont write in the answer this point) and explain the answer in detail so the children can feel it interactive🎵🎹.
-2. If any question the user asks which is not related to music or music blocks then just say This is the music blocks or generating a lesson plan or lessons chatbot only answers music blocks questions polietly. 
+1. 8 to 10 years children should also be capable of understanding your answer so just divide your answer into points with numbers or stars or some decorations(Important - Don't write in answer this point) and explain the answer in detail so the children can feel it interactive🎵🎹.
+2. (Important)If any question the user asks which is not related to music or music blocks then just say This is the music blocks or generating a lesson plan or lessons chatbot only answers music blocks questions polietly. 
 3. When the user asks a question like generate a lesson plan of any particular topic then follow the structure provided. 
-4. just use these points and explain the question which user asked
+4. (Important)If the user asks any question related to maths caluculation also say I will have to say I will not answer this question this si music blocks chatbot please ank questions related to music and exit. 
+5. just use these points and explain the question which user asked. 
 
 Context: {context}
 Question: {question}
@@ -92,12 +96,16 @@ def is_greeting(user_input):
 
 # Function to check if the query is asking to generate a lesson plan
 async def is_generate_lesson_plan_query(query):
-    llm = load_llm()
-    user_query = f"check the query which I am giving weather the query is to asking or wants us to generate a lesson plan or not ? Just say yes or no.: query={query}"
+    llm = load_llm()  # Load the language model
+    user_query = f"""
+    Please answer the following question with either "yes" or "no" only.
+    query={query} 
+    1. Check the query which I have provided is asking or wants us to generate a lesson plan or not. If it is asking about the lesson plan, then only return 'yes', otherwise always return 'no'.
+    2. (Very Very Important - Just return only 'yes' if the user asks about generating a lesson plan else Just return only 'no' .):
+    """
     response = await llm.apredict(user_query)  # Ensure async call is awaited
     answer = response.strip().lower()  # Strip whitespace and convert to lowercase
-
-    # Determine if "yes" is in the answer string
+    # Check if the response is exactly "yes" or "no"
     return "yes" in answer
 
 # Global variables
@@ -106,17 +114,18 @@ lessonPlan = ""
 
 # Chainlit code
 @cl.on_chat_start
-async def start():
+async def on_chat_start():
     global table_memory
     chain = qa_bot()
     msg = cl.Message(content="Starting the bot...")
     await msg.send()
-    cl.user_session.set("history", [])
     msg.content = """NOTE - Please read the Readme file so that you efficiently use our Music Blocks AI.
                      Hi, welcome to the Music Blocks lesson plan creation assistant. How may I help you?"""
     await msg.update()
 
     cl.user_session.set("chain", chain)
+    cl.user_session.set("chat_history", [])  # Clear chat history on new chat
+    cl.user_session.set("context", "")       # Clear context on new chat
 
 def search_song(song_name, num_links):
       search_results = googlesearch.search(song_name)
@@ -128,23 +137,48 @@ def search_song(song_name, num_links):
         
       return results
 
-# Define the conversation chain function
-def conversation_chain(history, user_input):
-    # Combine the history and user input to form a context-aware prompt
-    context = "\n".join([f"User: {entry}" for entry in history])
-    context += f"\nUser: {user_input}"
-    
-    return context
+# Define the system prompt for contextualization
+contextualize_q_system_prompt = """
+1. Given a chat history and the latest user question, formulate a standalone question.
+2. Always give more priority to the latest question the user asked.
+3. Ensure the reformulated question can be understood without the chat history.
+4. Never answer the question; just return the updated question.
+5. Do not deviate too much from the question; keep it in the same format as the user asked.
+6. Take reference from the chat history if there is any relationship with the current question.
+7. If the question the user asked is not related to the chat history, then just return the same latest user question. Keep it simple.
+8. Don’t change the complete question; just take reference from the context.
+9. If the user asks a question which is not related to Music Blocks, just return it as it is.
+10. Return only the reformulated question.
+11. Do not deviate too much from the question asked.
+12. If the user asks maths questions return as it is.
+13. If any music terms are asked try to relate with music blocks."""
+
+# Create the prompt template for contextualization
+contextualize_q_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", contextualize_q_system_prompt),
+        MessagesPlaceholder(variable_name="chat_history"),
+        ("human", "{question}"),
+    ]
+)
+
+# Combine the prompt template, LLM, and output parser into a chain
+llm = load_llm()
+contextualize_q_chain = contextualize_q_prompt | llm | StrOutputParser()
+
+# Define a function to contextualize questions dynamically
+def contextualize_question(chat_history, question):
+    return contextualize_q_chain.invoke(
+        {
+            "chat_history": chat_history,
+            "question": question,
+        }
+    )
 
 @cl.on_message
 async def main(message: cl.Message):
     global table_memory
     user_input = message.content.strip().lower()
-    
-    # Get conversation history from user session
-    history = cl.user_session.get("history", [])
-    history.append(user_input)
-    cl.user_session.set("history", history)  # Update history in user session
     
     # Check for sentiment
     sentiment = detect_sentiment(user_input)
@@ -200,10 +234,7 @@ async def main(message: cl.Message):
                         selected_song = parts[2].strip()  # Song Name
                         reason = parts[3].strip()        # Reason
                         break
-                user_input = f"Question: {lessonPlan} based on this {selected_song} song? Follow the structure of lesson plans provided and try to explain the above question in detail using the song and elaborate that song using that topic using music blocks. Explain in detail in 1000 to 1500 words the question"
-                context = conversation_chain(history, user_input)
-                if not user_input.isdigit():
-                    history.append(user_input)
+                user_input = f"Question: {lessonPlan} based on this {selected_song} song? Follow the structure of lesson plans provided and try to explain the above question in detail using the song and elaborate that song using that topic using music blocks.(Important - Give step-by-step explanation of how to do it using the blocks available in music blocks and in what manner we need to arrange them give this as an diagram). Explain in detail in 1000 to 1500 words the question"
                 chain = cl.user_session.get("chain")
                 if not chain:
                     raise ValueError("Chain is not initialized.")
@@ -213,7 +244,7 @@ async def main(message: cl.Message):
                     stream_final_answer=True, answer_prefix_tokens=["FINAL", "ANSWER"]
                 )
                 cb.answer_reached = True
-                res = await chain.acall({'query': context}, callbacks=[cb])  # Ensure async call is awaited
+                res = await chain.acall({'query': user_input}, callbacks=[cb])  # Ensure async call is awaited
                 answer = res["result"]
                 
                 # Send the response to the user
@@ -230,19 +261,29 @@ async def main(message: cl.Message):
                 await cl.Message(content="This is the music blocks chatbot.").send()
             return
 
-    # Use conversation chain to form context-aware input
-    context = conversation_chain(history, user_input)
-    
+    # Contextualize the question if needed
+    chat_history = cl.user_session.get("chat_history", [])
+    user_input = contextualize_question(chat_history, user_input)
+
     # If no sentiment or greeting detected, proceed with QA
     chain = cl.user_session.get("chain")
     if not chain:
         raise ValueError("Chain is not initialized.")
-    cb = cl.AsyncLangchainCallbackHandler(
-        stream_final_answer=True, answer_prefix_tokens=["FINAL", "ANSWER"]
-    )
+    cb = cl.AsyncLangchainCallbackHandler()
     cb.answer_reached = True
-    res = await chain.acall({'query': context}, callbacks=[cb])  # Ensure async call is awaited
+    res = await chain.acall({'query': user_input}, callbacks=[cb])  # Ensure async call is awaited
     answer = res["result"]
+
+    # Update chat history
+    chat_history.append(HumanMessage(content=user_input))
+    chat_history.append(AIMessage(content=answer))
+    cl.user_session.set("chat_history", chat_history)
 
     # Send the response back to the user
     await cl.Message(content=answer).send()
+    
+@cl.password_auth_callback
+def auth_callback(username: str, password: str):
+          return cl.User(
+        identifier=username, metadata={"role": "user", "provider": "credentials"}
+    )
