@@ -2,3 +2,4 @@ vectorstore/
 .chainlit/
 __pycache__/
 .google-cookie
+.env
