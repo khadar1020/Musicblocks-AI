@@ -83,11 +83,19 @@ Projects in Music Blocks -
   ```bash
   pip install -r requirements.txt
   ```
-11. Then run this command to create a vector database this will take time 
+11. create an .env file in the folder of the project
+    
+12. Go to terminal of our project and run this command then you receive a CHAINLIT_AUTH_SECRET key place it in the .env file as CHAIN_AUTH_SECRET = "<your_secret_key>"
+
+  ```bash
+  chainlit create-secret
+  ```
+13. Go to this website and create an API key by logging in https://literalai.com/ and place it in the .env file as LITERAL_API_KEY="<your_literal_API_key>"
+14. Then run this command to create a vector database this will take time 
   ```bash
   python ingest.py
   ```
-12. Then run this final command to run the project locally on your PC 
+15. Then run this final command to run the project locally on your PC 
   ```bash
   chainlit run model.py -w
   ```   
