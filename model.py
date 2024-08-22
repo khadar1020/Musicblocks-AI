@@ -1,5 +1,7 @@
 import torch
+import os
 import google, googlesearch
+from googlesearch import search
 from transformers import pipeline
 from langchain.prompts import PromptTemplate
 from langchain_community.embeddings import OllamaEmbeddings
@@ -11,6 +13,11 @@ from fuzzywuzzy import fuzz
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import AIMessage, HumanMessage
+from docx import Document
+from docx.enum.section import WD_ORIENT
+from docx.shared import Inches
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 
 DB_CHROMA_PATH = 'vectorstore/db_chroma'
 
@@ -102,6 +109,7 @@ async def is_generate_lesson_plan_query(query):
     query={query} 
     1. Check the query which I have provided is asking or wants us to generate a lesson plan or not. If it is asking about the lesson plan, then only return 'yes', otherwise always return 'no'.
     2. (Very Very Important - Just return only 'yes' if the user asks about generating a lesson plan else Just return only 'no' .):
+    3. IF asked about images then return no. 
     """
     response = await llm.apredict(user_query)  # Ensure async call is awaited
     answer = response.strip().lower()  # Strip whitespace and convert to lowercase
@@ -112,6 +120,79 @@ async def is_generate_lesson_plan_query(query):
 table_memory = {}
 lessonPlan = ""
 
+def add_hyperlink(paragraph, url, text):
+    # Create the hyperlink element
+    hyperlink = OxmlElement('w:hyperlink')
+    hyperlink.set(qn('r:id'), paragraph.part.relate_to(url, 'rId1', is_external=True))
+
+    # Create a new run element
+    new_run = OxmlElement('w:r')
+    rPr = OxmlElement('w:rPr')
+
+    # Add style for the hyperlink (blue and underlined)
+    rStyle = OxmlElement('w:rStyle')
+    rStyle.set(qn('w:val'), 'Hyperlink')
+    rPr.append(rStyle)
+
+    # Set the text color to blue
+    color = OxmlElement('w:color')
+    color.set(qn('w:val'), '0000FF')  # Blue color
+    rPr.append(color)
+
+    # Set the underline
+    u = OxmlElement('w:u')
+    u.set(qn('w:val'), 'single')  # Single underline
+    rPr.append(u)
+
+    new_run.append(rPr)
+    new_run.text = text
+    hyperlink.append(new_run)
+
+    paragraph._element.append(hyperlink)
+
+
+# Function to save response to a .docx file
+async def save_response_to_docx(response, formatted_message, j_formatted_message):
+    doc = Document()
+    doc.add_heading('Music Blocks Lesson Plan', 0)
+    
+    # Add the response to the document
+    doc.add_paragraph(response)
+    # Add formatted_message with hyperlinks
+    doc.add_paragraph("MIDI Links:")
+    lines = formatted_message.splitlines()
+    for line in lines:
+        if line.strip():  # Avoid adding empty lines
+            if '](' in line and line.endswith(')'):
+                text, url = line.split('](', 1)
+                text = text.replace('[', '')  # Clean up the link text
+                url = url.replace(')', '')    # Clean up the URL
+                p = doc.add_paragraph()
+                add_hyperlink(p, url, text)
+            else:
+                # If the line does not match the expected format, just add it as plain text
+                doc.add_paragraph(line)
+    
+    # Add j_formatted_message with hyperlinks
+    doc.add_paragraph("Wiki Pages:")
+    lines = j_formatted_message.splitlines()
+    for line in lines:
+        if line.strip():  # Avoid adding empty lines
+            if '](' in line and line.endswith(')'):
+                text, url = line.split('](', 1)
+                text = text.replace('[', '')  # Clean up the link text
+                url = url.replace(')', '')    # Clean up the URL
+                p = doc.add_paragraph()
+                add_hyperlink(p, url, text)
+            else:
+                # If the line does not match the expected format, just add it as plain text
+                doc.add_paragraph(line)
+
+    # Save the document
+    save_path = os.path.join('lesson_plans', 'lesson_plan.docx')
+    doc.save(save_path)
+    return save_path 
+    
 # Chainlit code
 @cl.on_chat_start
 async def on_chat_start():
@@ -136,6 +217,16 @@ def search_song(song_name, num_links):
             results.append(result)
         
       return results
+  
+def wiki_search(topic, num_links):
+    lesson_topic = f"wiki pages of {topic}"
+    search_results = googlesearch.search(lesson_topic)
+    results = []
+    for i, result in enumerate(search_results):
+        if i>=num_links:
+            break
+        results.append(result)        
+    return results  
 
 # Define the system prompt for contextualization
 contextualize_q_system_prompt = """
@@ -197,7 +288,7 @@ async def main(message: cl.Message):
 
     # Check if user input is a request to generate or create a lesson plan
     if await is_generate_lesson_plan_query(user_input):
-        global lessonPlan
+        global lessonPlan, topic
         lessonPlan = user_input
         user_input = f"What are the best 6 real world songs that I can use for this {user_input}? Give me the songs in a table the first column has index and second column has song(only give song name) and third column has why that song is helpful follow this order just give me a table dont give me any other information other than the table ignore all the other questions asked please"
         # Use conversation chain to form context-aware input
@@ -216,10 +307,12 @@ async def main(message: cl.Message):
             
         # Prompt the user to select a song index
         await cl.Message(content=f"Please give me the index of the song you want to use for generating the lesson plan.").send()
+        topic = await llm.apredict(f"Extract the lesson plan topic name for this question don't use music blocks word just return the topic name. question: {lessonPlan}")
         return
 
     # Check if user input is a number (1-6)
     if user_input.isdigit():
+        print(topic)
         selected_index = int(user_input)
         if 1 <= selected_index <= 6:
             selected_song = None
@@ -234,7 +327,7 @@ async def main(message: cl.Message):
                         selected_song = parts[2].strip()  # Song Name
                         reason = parts[3].strip()        # Reason
                         break
-                user_input = f"Question: {lessonPlan} based on this {selected_song} song? Follow the structure of lesson plans provided and try to explain the above question in detail using the song and elaborate that song using that topic using music blocks.(Important - Give step-by-step explanation of how to do it using the blocks available in music blocks and in what manner we need to arrange them give this as an diagram). Explain in detail in 1000 to 1500 words the question"
+                user_input = f"Question: {lessonPlan} based on this {selected_song} song? Follow the structure of lesson plans provided and try to explain the above question in detail using the song and elaborate that song using that topic using music blocks.(Important - Give step-by-step explanation of how to do it using the blocks available in music blocks use blocks which are necessary for the lessonPlan also you can use mice of Music Blocks). Explain in detail in 1000 to 1500 words the question"
                 chain = cl.user_session.get("chain")
                 if not chain:
                     raise ValueError("Chain is not initialized.")
@@ -249,9 +342,30 @@ async def main(message: cl.Message):
                 
                 # Send the response to the user
                 await cl.Message(content=answer).send()
-                first_url = search_song("search midi file of "+selected_song, 5)
-                await cl.Message(content=f"Here is the midi file link of the song {selected_song} you can download it and directly upload this in Music Blocks: {first_url}").send()
-
+                midi_urls = search_song("search midi file of "+selected_song, 5)
+                formatted_message = f"Here are some MIDI file links for the song '{selected_song}':\n"
+                for i, url in enumerate(midi_urls, start=1):
+                    formatted_message += f"[{selected_song} MIDI {i}]({url})\n"
+                await cl.Message(content=formatted_message).send()
+                wiki_urls = wiki_search(topic, 3)
+                j_formatted_message = f"Here are some wiki pages of the topic which you can refer '{topic}':\n"
+                print(f"ok {j_formatted_message}")
+                for i, url in enumerate(wiki_urls, start=1):
+                    j_formatted_message += f"[Wiki {i}]({url})\n"
+                await cl.Message(content=j_formatted_message).send()
+                # Save the response to a .docx file
+                os.makedirs('lesson_plans', exist_ok=True)
+                file_path = await save_response_to_docx(answer, formatted_message, j_formatted_message)
+                elements = [
+                cl.File(
+                    name= topic,
+                    path=file_path,
+                    display="inline",
+                ),
+                ]
+                await cl.Message(
+                    content="Your lesson plan is ready!", elements=elements
+                ).send()
                 return
         else:
             if 'table' in table_memory:
@@ -263,7 +377,9 @@ async def main(message: cl.Message):
 
     # Contextualize the question if needed
     chat_history = cl.user_session.get("chat_history", [])
+    print(user_input)
     user_input = contextualize_question(chat_history, user_input)
+    print(user_input)
 
     # If no sentiment or greeting detected, proceed with QA
     chain = cl.user_session.get("chain")

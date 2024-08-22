@@ -15,7 +15,7 @@ def main():
                 loader = PyPDFLoader(os.path.join(root, file))
                 documents = loader.load()
                 print("Splitting into chunks")
-                text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
+                text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
                 texts = text_splitter.split_documents(documents)
                 # Create embeddings here
                 print("Loading Ollama embeddings")

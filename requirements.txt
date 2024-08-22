@@ -11,3 +11,4 @@ fuzzywuzzy
 python-Levenshtein
 googlesearch-python
 chromadb
+python-docx

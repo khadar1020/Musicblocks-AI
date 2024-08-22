@@ -3,3 +3,4 @@ vectorstore/
 __pycache__/
 .google-cookie
 .env
+.lesson_plans
